@@ -19,7 +19,7 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get build-dep -y squid && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y wget tar xz-utils libssl-dev nano
 
-ARG SQUID_VERSION=4.0.25
+ARG SQUID_VERSION=4.17
 
 # TODO: verify the squid download with the signing key
 RUN mkdir /src \
@@ -79,7 +79,7 @@ RUN wget -O /usr/local/bin/p2 \
     chmod +x /usr/local/bin/p2
 
 # Clone and build proxychains-ng for SSL upstream proxying
-ARG PROXYCHAINS_COMMITTISH=7a233fb1f05bcbf3d7f5c91658932261de1e13cb
+ARG PROXYCHAINS_COMMITTISH=060801d8c8613692469c8d1ccfc2598fb8a2992a
 
 RUN apt-get install -y git
 
