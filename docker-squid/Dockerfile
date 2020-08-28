@@ -10,16 +10,16 @@ RUN if [ ! -z "$TRUST_CERT" ]; then \
     fi
 
 # Normalize apt sources
-RUN cat /etc/apt/sources.list | grep -v '^#' | sed /^$/d | sort | uniq > sources.tmp.1 && \
-    cat /etc/apt/sources.list | sed s/deb\ /deb-src\ /g | grep -v '^#' | sed /^$/d | sort | uniq > sources.tmp.2 && \
-    cat sources.tmp.1 sources.tmp.2 > /etc/apt/sources.list && \
+RUN cat /etc/apt/sources.list | grep -v '^#' | sed /^$/d > sources.tmp.1 && \
+    cat /etc/apt/sources.list | sed s/deb\ /deb-src\ /g | grep -v '^#' | sed /^$/d > sources.tmp.2 && \
+    cat sources.tmp.1 sources.tmp.2 | sort -u > /etc/apt/sources.list && \
     rm -f sources.tmp.1 sources.tmp.2
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get build-dep -y squid && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y wget tar xz-utils libssl-dev
+    DEBIAN_FRONTEND=noninteractive apt-get install -y wget tar xz-utils libssl-dev nano
 
-ARG SQUID_VERSION=4.0.21
+ARG SQUID_VERSION=4.0.25
 
 # TODO: verify the squid download with the signing key
 RUN mkdir /src \
@@ -64,7 +64,8 @@ RUN cd /src/squid && \
 		--with-filedescriptors=65536 \
 		--with-large-files \
 		--with-default-user=proxy \
-        	--disable-arch-native
+        --disable-arch-native \
+        --disable-ipv6
 		
 ARG CONCURRENCY=1
 
