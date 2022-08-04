@@ -17,7 +17,7 @@ RUN cat /etc/apt/sources.list | grep -v '^#' | sed /^$/d > sources.tmp.1 && \
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get build-dep -y squid && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y wget tar xz-utils libssl-dev nano
+    DEBIAN_FRONTEND=noninteractive apt-get install -y wget tar xz-utils libssl-dev libdb5.3-dev nano
 
 ARG SQUID_VERSION=4.17
 
@@ -29,6 +29,7 @@ RUN mkdir /src \
     && tar -C squid --strip-components=1 -xvf squid-$SQUID_VERSION.tar.xz
     
 RUN cd /src/squid && \
+    CPPFLAGS=" -I/usr/include/tirpc" \
     ./configure \
         --prefix=/usr \
         --datadir=/usr/share/squid4 \
@@ -65,11 +66,13 @@ RUN cd /src/squid && \
 		--with-large-files \
 		--with-default-user=proxy \
         --disable-arch-native \
-        --disable-ipv6
+        --disable-ipv6 \
+        --disable-strict-error-checking
 		
 ARG CONCURRENCY=1
 
 RUN cd /src/squid && \
+    CPPFLAGS=" -I/usr/include/tirpc" \
     make -j$CONCURRENCY && \
     make install
 
