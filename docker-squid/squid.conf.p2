@@ -22,7 +22,12 @@ tls_outgoing_options capath=/etc/ssl/certs \
     options={{TLS_OPTIONS|default:""}} \
     cipher=ALL:!RC4:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!SRP:!DSS
 
-http_port {{HTTP_PORT}} {% if MITM_PROXY|default:"" == "yes" %} ssl-bump \
+{% for http_port in HTTP_PORT|split:" " %}
+http_port {{http_port}} 
+{% endfor %}
+
+
+{% if MITM_PROXY|default:"" == "yes" %} ssl-bump \
     generate-host-certificates=on \
     dynamic_cert_mem_cache_size=4MB \
     cert=/etc/squid/ssl_cert/mitm.crt \
