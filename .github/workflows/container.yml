@@ -8,12 +8,11 @@ on:
   #     - completed
   #   branches:
   #     - main
-  branches:
-    - main
   push:
+    branches:
+      - main
     tags:
       - v*
-
   # Weekly rebuild for security patching
   schedule:
     - cron: 0 13 * * 1
