@@ -5,28 +5,28 @@ logfile_rotate 0
 access_log stdio:/dev/stdout combined
 cache_store_log stdio:/dev/stdout
 cache_log /dev/stderr
-netdb_filename stdio:/var/cache/squid4/netdb.state
+netdb_filename stdio:/var/cache/squid/netdb.state
 
 # Visible hostname to allow multi-squid
-visible_hostname {{VISIBLE_HOSTNAME|default:"docker-squid4"}}
+visible_hostname {{VISIBLE_HOSTNAME|default:"docker-squid"}}
 
 {% if DISABLE_CACHE|default:"" != "yes" %}
 # Cache directory is fixed since we'll bind mount.
-cache_dir aufs /var/cache/squid4 {{MAX_CACHE_SIZE|default:"40000"}} 16 256
+cache_dir aufs /var/cache/squid {{MAX_CACHE_SIZE|default:"40000"}} 16 256
 {% endif %}
 
 maximum_object_size {{MAX_OBJECT_SIZE|default:"1536 MB"}}
 cache_mem {{MEM_CACHE_SIZE|default:"128 MB"}}
 
 tls_outgoing_options capath=/etc/ssl/certs \
-    options={{TLS_OPTIONS|default:"NO_SSLv3,NO_TLSv1"}} \
+    options={{TLS_OPTIONS|default:""}} \
     cipher=ALL:!RC4:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!SRP:!DSS
 
 http_port {{HTTP_PORT}} {% if MITM_PROXY|default:"" == "yes" %} ssl-bump \
     generate-host-certificates=on \
     dynamic_cert_mem_cache_size=4MB \
-    cert=/etc/squid4/ssl_cert/mitm.crt \
-    key=/etc/squid4/ssl_cert/mitm.pem
+    cert=/etc/squid/ssl_cert/mitm.crt \
+    key=/etc/squid/ssl_cert/mitm.pem
 {% endif %}
 
 {% if MITM_PROXY|default:"" == "yes" %}
