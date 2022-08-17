@@ -25,7 +25,26 @@ if [ ! -x "$docker" ] && [ -x "$(which podman)" ]; then
     docker="$(which podman)"
 fi
 
+# detect and set http_proxy using local script
+APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
+ 				grep -v -e ^# -e ^\/\/ -e ^$ | 
+                grep Acquire::http::ProxyAutoDetect |
+                sed 's/Acquire::http::ProxyAutoDetect\ //' | sed '$s/;$//')
+
+# did we get an apt proxy cmd?
+if [ ! -z "$APT_PROXY_CMD" ]; then
+	echo "Trying to detect proxy using apt script..."
+	deb_proxy=$(bash -c "$APT_PROXY_CMD")
+else
+	# try and get just a regular proxy
+	deb_proxy=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
+	 				grep -v -e ^# -e ^\/\/ -e ^$ | 
+		            grep 'Acquire::http::ProxyAutoDetect ' |
+		            sed 's/Acquire::http::Proxy\ //' | sed '$s/;$//' | tr -d '"' )
+fi
+
 "$docker" build \
-    --build-arg=http_proxy="$http_proxy" \
+    --build-arg=http_proxy="$deb_proxy" \
+    --build-arg=https_proxy="$deb_proxy" \
     --build-arg=CONCURRENCY="$(grep -c processor /proc/cpuinfo)" \
-    -t wrouesnel/docker-squid4 docker-squid
+    -t wrouesnel/docker.squid docker-squid

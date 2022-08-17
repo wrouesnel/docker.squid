@@ -1,31 +1,31 @@
 #!/bin/bash
 
 # Setup the ssl_cert directory
-if [ ! -d /etc/squid4/ssl_cert ]; then
-    mkdir /etc/squid4/ssl_cert
+if [ ! -d /etc/squid/ssl_cert ]; then
+    mkdir /etc/squid/ssl_cert
 fi
 
-chown -R proxy:proxy /etc/squid4
-chmod 700 /etc/squid4/ssl_cert
+chown -R proxy:proxy /etc/squid
+chmod 700 /etc/squid/ssl_cert
 
 # Setup the squid cache directory
-if [ ! -d /var/cache/squid4 ]; then
-    mkdir -p /var/cache/squid4
+if [ ! -d /var/cache/squid ]; then
+    mkdir -p /var/cache/squid
 fi
-chown -R proxy: /var/cache/squid4
-chmod -R 750 /var/cache/squid4
+chown -R proxy: /var/cache/squid
+chmod -R 750 /var/cache/squid
 
 if [ ! -z $MITM_PROXY ]; then
     if [ ! -z $MITM_KEY ]; then
         echo "Copying $MITM_KEY as MITM key..."
-        cp $MITM_KEY /etc/squid4/ssl_cert/mitm.pem
-        chown root:proxy /etc/squid4/ssl_cert/mitm.pem
+        cp $MITM_KEY /etc/squid/ssl_cert/mitm.pem
+        chown root:proxy /etc/squid/ssl_cert/mitm.pem
     fi
 
     if [ ! -z $MITM_CERT ]; then
         echo "Copying $MITM_CERT as MITM CA..."
-        cp $MITM_CERT /etc/squid4/ssl_cert/mitm.crt
-        chown root:proxy /etc/squid4/ssl_cert/mitm.crt
+        cp $MITM_CERT /etc/squid/ssl_cert/mitm.crt
+        chown root:proxy /etc/squid/ssl_cert/mitm.crt
     fi
 
     if [ -z $MITM_CERT ] || [ -z $MITM_KEY ]; then
@@ -38,34 +38,34 @@ chown proxy: /dev/stdout
 chown proxy: /dev/stderr
 
 # Initialize the certificates database
-/usr/libexec/security_file_certgen -c -s /var/spool/squid4/ssl_db -M 4MB
-chown -R proxy: /var/spool/squid4/ssl_db
+/usr/libexec/security_file_certgen -c -s /var/spool/squid/ssl_db -M 4MB
+chown -R proxy: /var/spool/squid/ssl_db
 
 #ssl_crtd -c -s
 #ssl_db
 
 # Set the configuration
 if [ "$CONFIG_DISABLE" != "yes" ]; then
-    p2 -t /squid.conf.p2 > /etc/squid4/squid.conf
+    p2 -t /squid.conf.p2 > /etc/squid/squid.conf
 
     # Parse the cache peer lines from the environment and add them to the
     # configuration
-    echo '# CACHE PEERS FROM DOCKER' >> /etc/squid4/squid.conf
+    echo '# CACHE PEERS FROM DOCKER' >> /etc/squid/squid.conf
     env | grep 'CACHE_PEER' | sort | while read cacheline; do
-        echo "# $cacheline " >> /etc/squid4/squid.conf
+        echo "# $cacheline " >> /etc/squid/squid.conf
         line=$(echo $cacheline | cut -d'=' -f2-)
-        echo "cache_peer $line" >> /etc/squid4/squid.conf
+        echo "cache_peer $line" >> /etc/squid/squid.conf
     done
 
     # Parse the extra config lines and append them to the configuration
-    echo '# EXTRA CONFIG FROM DOCKER' >> /etc/squid4/squid.conf
+    echo '# EXTRA CONFIG FROM DOCKER' >> /etc/squid/squid.conf
     env | grep 'EXTRA_CONFIG' | sort | while read extraline; do
-        echo "# $extraline " >> /etc/squid4/squid.conf
+        echo "# $extraline " >> /etc/squid/squid.conf
         line=$(echo $extraline | cut -d'=' -f2-)
-        echo "$line" >> /etc/squid4/squid.conf
+        echo "$line" >> /etc/squid/squid.conf
     done
 else
-    echo "/etc/squid4/squid.conf: CONFIGURATION TEMPLATING IS DISABLED."
+    echo "/etc/squid/squid.conf: CONFIGURATION TEMPLATING IS DISABLED."
 fi
 
 if [ "$DNS_OVER_HTTPS" = "yes" ]; then
@@ -78,11 +78,11 @@ if [ "$DNS_OVER_HTTPS" = "yes" ]; then
         -no-fallthrough "$(echo $DNS_OVER_HTTPS_NO_FALLTHROUGH | tr -s ' ' ',')" \
         -fallthrough-statuses "$DNS_OVER_HTTPS_FALLTHROUGH_STATUSES" &
     echo "Adding dns_nameservers line to squid.conf..."
-    echo "dns_nameservers $(echo $DNS_OVER_HTTPS_LISTEN_ADDR | cut -d':' -f1)" >> /etc/squid4/squid.conf
+    echo "dns_nameservers $(echo $DNS_OVER_HTTPS_LISTEN_ADDR | cut -d':' -f1)" >> /etc/squid/squid.conf
 fi
 
-if [ ! -e /etc/squid4/squid.conf ]; then
-    echo "ERROR: /etc/squid4/squid.conf does not exist. Squid will not work."
+if [ ! -e /etc/squid/squid.conf ]; then
+    echo "ERROR: /etc/squid/squid.conf does not exist. Squid will not work."
     exit 1
 fi
 
@@ -102,7 +102,7 @@ if [ "$PROXYCHAIN" = "yes" ] && [ "$CONFIG_DISABLE" != "yes" ]; then
     
     echo "[ProxyList]" >> /etc/proxychains.conf
     env | grep 'PROXYCHAIN_PROXY' | sort | while read proxyline; do
-        echo "# $proxyline " >> /etc/squid4/squid.conf
+        echo "# $proxyline " >> /etc/squid/squid.conf
         line=$(echo $proxyline | cut -d'=' -f2-)
         echo "$line" >> /etc/proxychains.conf
     done

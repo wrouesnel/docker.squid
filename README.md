@@ -1,6 +1,6 @@
-# Squid4 with SSL proxying
+# Squid with SSL proxying
 
-This dockerfile builds a Squid 4 instance and includes all the necessary
+This dockerfile builds a Squid instance and includes all the necessary
 tooling to run it as a MITM (man-in-the-middle) SSL proxy.
 
 There's a number of reasons to do this - the big one being optimizing caching
@@ -27,11 +27,11 @@ variables:
     If set, the given PEM certificate is copied and used as the signing key for 
     the MITM CA.
  * `VISIBLE_HOSTNAME`
-    Default: `docker-squid4`
+    Default: `docker-squid`
     Should be set to a unique value if you are chaining multiple proxy servers.
  * `MAX_CACHE_SIZE`
     Default: `40000`
-    Cache size in megabytes. The cache defaults to `/var/cache/squid4`. You 
+    Cache size in megabytes. The cache defaults to `/var/cache/squid`. You 
     should mount a volume here to make it persistent.
  * `MAX_OBJECT_SIZE`
     Default `"1536 MB"`
@@ -71,7 +71,7 @@ with SSL as well. This breaks compatibility with simple minded proxies.
 
 To work around this, proxychains-ng (`proxychains4` internally) is built and
 included in this image. If you need to use an upstream proxy with a MITM
-squid4, you should launch the image in proxychains mode which intercepts squids
+squid, you should launch the image in proxychains mode which intercepts squids
 direct outbound connections and redirects them via CONNECT requests. This also
 adds SOCKS4 and SOCKS5 proxy support if so desired.
 
@@ -96,12 +96,12 @@ others above, `CONFIG_DISABLE` prevents overwriting templated files.
 
 # DNS-over-HTTPS
 In some corporate environments, its not possible to get reliable DNS outbound
-service and `proxychains-ng`'s DNS support won't be able to provide for Squid4
+service and `proxychains-ng`'s DNS support won't be able to provide for Squid
 to actually work. To address this, configuration is included to setup and use
 DNS-over-HTTPS.
 
 The idea of the DNS-over-HTTPS client is that it will use your local proxy and
-network access to provide DNS service to Squid4.
+network access to provide DNS service to Squid.
 
 * `DNS_OVER_HTTPS`
   Default `no`. If `yes` then enables and starts the DNS_OVER_HTTPS service.
@@ -131,7 +131,7 @@ as a local MITM on your machine:
 ```
 sudo mkdir -p /srv/squid/cache
 docker run -it -p 3128:127.0.0.1:3128 --rm \
-    -v /srv/squid/cache:/var/cache/squid4 \
+    -v /srv/squid/cache:/var/cache/squid \
     -v /etc/ssl/certs:/etc/ssl/certs:ro \ 
     -v /etc/ssl/private/local_mitm.pem:/local-mitm.pem:ro \
     -v /etc/ssl/certs/local_mitm.pem:/local-mitm.crt:ro \
@@ -145,26 +145,26 @@ Note that it doesn't really matter where we mount the certificate - the image
 launch script makes a copy as root to avoid messing with permissions anyway.
 
 ## Unit File for systemd
-This is an example of a systemd unit file to persistly start squid4:
+This is an example of a systemd unit file to persistly start squid:
 ```
 [Unit]
-Description=Squid4 Docker Container
+Description=Squid Docker Container
 Documentation=http://wiki.squid.org
 After=network.target docker.service
 Requires=docker.service
 
 [Service]
-ExecStartPre=-/usr/bin/docker kill squid4
-ExecStartPre=-/usr/bin/docker rm squid4
+ExecStartPre=-/usr/bin/docker kill squid
+ExecStartPre=-/usr/bin/docker rm squid
 ExecStart=/usr/bin/docker run --net=host --rm \
-    -v /srv/squid/cache:/var/cache/squid4 \
+    -v /srv/squid/cache:/var/cache/squid \
     -v /etc/ssl/certs:/etc/ssl/certs:ro \
     -v /etc/ssl/private/local_mitm.pem:/local_mitm.pem:ro \
     -v /etc/ssl/certs/local_mitm.pem:/local_mitm.crt:ro \
     -e MITM_KEY=/local_mitm.pem \
     -e MITM_CERT=/local_mitm.crt \
     -e MITM_PROXY=yes \
-    --name squid4 \
+    --name squid \
     squid
 
 [Install]
