@@ -44,6 +44,7 @@ else
 fi
 
 "$docker" build \
+    --iidfile .dockerid \
     --build-arg=http_proxy="$deb_proxy" \
     --build-arg=https_proxy="$deb_proxy" \
     --build-arg=CONCURRENCY="$(grep -c processor /proc/cpuinfo)" \

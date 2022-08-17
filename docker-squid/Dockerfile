@@ -21,6 +21,8 @@ RUN cat /etc/apt/sources.list | grep -v '^#' | sed /^$/d > sources.tmp.1 && \
     cat sources.tmp.1 sources.tmp.2 | sort -u > /etc/apt/sources.list && \
     rm -f sources.tmp.1 sources.tmp.2
 
+ARG CONCURRENCY=1
+
 RUN export http_proxy=${http_proxy} ; \
     export https_proxy=${https_proxy} ; \
     apt-get update && \
@@ -30,29 +32,34 @@ RUN export http_proxy=${http_proxy} ; \
 # Download p2cli dependency
 RUN export http_proxy=${http_proxy} ; \
     export https_proxy=${https_proxy} ; \
+    apt install -y wget && \
     wget -O /usr/local/bin/p2 \
     https://github.com/wrouesnel/p2cli/releases/download/r13/p2-linux-x86_64 && \
-    chmod +x /usr/local/bin/p2
+    chmod +x /usr/local/bin/p2 && \
+    apt remove -y --purge wget
 
 # Clone and build proxychains-ng for SSL upstream proxying
 ARG PROXYCHAINS_COMMITTISH=2cc014995e9ad038e2553a455ed914d1ad32fe49
 
 RUN export http_proxy=${http_proxy} ; \
     export https_proxy=${https_proxy} ; \
-    apt install -y git && \
+    apt install -y git build-essential && \
     git clone https://github.com/rofl0r/proxychains-ng.git /src/proxychains-ng && \
     cd /src/proxychains-ng && \
     git checkout $PROXYCHAINS_COMMITTISH && \
     ./configure --prefix=/usr --sysconfdir=/etc && \
     make -j$CONCURRENCY && make install && \
-    apt remove --purge git
+    apt -y remove --purge git build-essential && \
+    apt autoremove --purge -y
 
 ARG URL_DOH=https://github.com/wrouesnel/dns-over-https-proxy/releases/download/v0.0.2/dns-over-https-proxy_v0.0.2_linux-amd64.tar.gz
 
-RUN wget -O /tmp/doh.tgz \
+RUN apt install -y wget && \
+    wget -O /tmp/doh.tgz \
     $URL_DOH && \
     tar -xvvf /tmp/doh.tgz --strip-components=1 -C /usr/local/bin/ && \
-    chmod +x /usr/local/bin/dns-over-https-proxy
+    chmod +x /usr/local/bin/dns-over-https-proxy && \
+    apt remove -y --purge wget
 
 COPY squid.conf.p2 /squid.conf.p2
 COPY entrypoint.sh /entrypoint.sh

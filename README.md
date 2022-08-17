@@ -138,7 +138,7 @@ docker run -it -p 3128:127.0.0.1:3128 --rm \
     -e MITM_CERT=/local-mitm.crt \
     -e MITM_KEY=/local-mitm.pem \
     -e MITM_PROXY=yes \
-    squid
+    gchr.io/wrouesnel/squid
 ```
 
 Note that it doesn't really matter where we mount the certificate - the image
@@ -165,7 +165,7 @@ ExecStart=/usr/bin/docker run --net=host --rm \
     -e MITM_CERT=/local_mitm.crt \
     -e MITM_PROXY=yes \
     --name squid \
-    squid
+    gchr.io/wrouesnel/squid
 
 [Install]
 WantedBy=multi-user.target
