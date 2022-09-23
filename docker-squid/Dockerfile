@@ -27,7 +27,7 @@ RUN export http_proxy=${http_proxy} ; \
     export https_proxy=${https_proxy} ; \
     apt-get update && \
     # install build tools
-    DEBIAN_FRONTEND=noninteractive apt -y install squid
+    DEBIAN_FRONTEND=noninteractive apt -y install squid-openssl
 
 # Download p2cli dependency
 RUN export http_proxy=${http_proxy} ; \
@@ -61,6 +61,16 @@ RUN apt install -y wget && \
     chmod +x /usr/local/bin/dns-over-https-proxy && \
     apt remove -y --purge wget
 
+ARG URL_MAKECERTS=https://github.com/wrouesnel/makecerts/releases/download/v0.4/makecerts.x86_64
+
+RUN export http_proxy=${http_proxy} ; \
+    export https_proxy=${https_proxy} ; \
+    apt install -y wget ; \
+    wget -O /usr/local/bin/makecerts $URL_MAKECERTS && \
+    chmod +x /usr/local/bin/makecerts && \
+    apt remove -y --purge wget
+
+
 COPY squid.conf.p2 /squid.conf.p2
 COPY entrypoint.sh /entrypoint.sh
 
@@ -71,6 +81,7 @@ ENV HTTP_PORT=3128 \
     MITM_PROXY= \
     MITM_CERT= \
     MITM_KEY= \
+    MITM_DEBUG= \
     VISIBLE_HOSTNAME=squid \
     MAX_CACHE_SIZE=40000 \
     MAX_OBJECT_SIZE="1536 MB" \

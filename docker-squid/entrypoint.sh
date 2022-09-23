@@ -15,22 +15,29 @@ fi
 chown -R proxy: /var/cache/squid
 chmod -R 750 /var/cache/squid
 
-if [ ! -z $MITM_PROXY ]; then
-    if [ ! -z $MITM_KEY ]; then
+if [ ! -z "$MITM_PROXY" ]; then
+    if [ -z "$MITM_CERT" ] || [ -z "$MITM_KEY" ]; then
+        if [ "$MITM_DEBUG" = "yes" ]; then
+            echo "Generating MITM certificate CA for debugging use" 1>&2
+            makecerts < /dev/null
+            MITM_CERT=".crt"
+            MITM_KEY=".pem"
+        else
+            echo "Must specify MITM_CERT AND MITM_KEY." 1>&2
+            exit 1
+        fi
+    fi
+
+    if [ ! -z "$MITM_KEY" ]; then
         echo "Copying $MITM_KEY as MITM key..."
-        cp $MITM_KEY /etc/squid/ssl_cert/mitm.pem
+        cp "$MITM_KEY" /etc/squid/ssl_cert/mitm.pem
         chown root:proxy /etc/squid/ssl_cert/mitm.pem
     fi
 
-    if [ ! -z $MITM_CERT ]; then
+    if [ ! -z "$MITM_CERT" ]; then
         echo "Copying $MITM_CERT as MITM CA..."
-        cp $MITM_CERT /etc/squid/ssl_cert/mitm.crt
+        cp "$MITM_CERT" /etc/squid/ssl_cert/mitm.crt
         chown root:proxy /etc/squid/ssl_cert/mitm.crt
-    fi
-
-    if [ -z $MITM_CERT ] || [ -z $MITM_KEY ]; then
-        echo "Must specify $MITM_CERT AND $MITM_KEY." 1>&2
-        exit 1
     fi
 fi
 
@@ -38,7 +45,7 @@ chown proxy: /dev/stdout
 chown proxy: /dev/stderr
 
 # Initialize the certificates database
-/usr/libexec/security_file_certgen -c -s /var/spool/squid/ssl_db -M 4MB
+/usr/lib/squid/security_file_certgen -c -s /var/spool/squid/ssl_db -M 4MB
 chown -R proxy: /var/spool/squid/ssl_db
 
 #ssl_crtd -c -s
