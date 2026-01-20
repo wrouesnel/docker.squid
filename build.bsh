@@ -48,4 +48,5 @@ fi
     --build-arg=http_proxy="$deb_proxy" \
     --build-arg=https_proxy="$deb_proxy" \
     --build-arg=CONCURRENCY="$(grep -c processor /proc/cpuinfo)" \
+    --volume "/etc/ssl/certs/ca-certificates.crt:/usr/local/share/ca-certificates/host-trust.crt:ro" \
     -t wrouesnel/docker.squid docker-squid

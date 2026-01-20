@@ -1,0 +1,10 @@
+[Interface]
+Address = {{WG_HOST_ADDR}}
+PrivateKey = {{WG_PRIVATE_KEY}}
+ListenPort = 51820
+
+[Peer]
+PublicKey = {{WG_PEER_KEY}}
+PresharedKey = {{WG_PEER_PSK}}
+AllowedIPs = {{WG_PEER_ADDR}}, {{WG_PEER_NETWORK}}
+Endpoint = 0.0.0.0:51820

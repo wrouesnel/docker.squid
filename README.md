@@ -14,6 +14,8 @@ variables:
 
  * `HTTP_PORT`
     Default: `3128`
+ * `TRANSPARENT_PORT`
+    Default: `3129`
  * `ICP_PORT`
     If set, enables ICP on the given port for all users.
  * `HTCP_PORT`
@@ -123,6 +125,36 @@ specify your internal proxy as an upstream to allow it to contact the HTTPS
 DNS server - do this by passing the standard `http_proxy` and `https_proxy`
 parameters. Most likely these will be the same as your `PROXYCHAIN_PROXYx`
 directives (and probably only the 1).
+
+# Wireguard
+
+Unifi Dream Machine policy-based routing only allows outbound routing of a virtual
+network via an interface or a site-to-site VPN connection. Thus in order to implement
+transparent proxying, you need to configure your Dream Machine with a VPN to this
+docker container - then local transparent proxying can be used.
+
+Wireguard is configured with the following environment variables:
+
+* `WG_ENABLE`
+   Default `no`
+* `WG_PRIVATE_KEY_PATH`
+   Default: `/etc/wireguard/wg0.key`
+* `WG_PRIVATE_KEY_GENERATE`=yes
+* `WG_PEER_KEY_PATH`
+   Default `/etc/wireguard/wg0.pub`
+* `WG_PEER_PSK_PATH`
+   Default `/etc/wireguard/wg0.psk`
+* `WG_PEER_ADDRS` 
+   Default `172.17.0.0/24`
+* `WG_ADDR` 
+   Default `172.17.0.1/24`
+* `WG_ENABLE_TPROXY`
+   Default `yes`. When wireguard connects, enable the TPROXY rules for Squid.
+
+The container must be run privileged to support wireguard.
+
+Configure you Unifi Dream Machine as a wireguard client and set a policy-based route from the
+virtual network you want to transparently proxy.
 
 # Example Usage
 The following command line will get you up and running quickly. It presumes

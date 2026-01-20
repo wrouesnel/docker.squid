@@ -117,8 +117,113 @@ else
     echo "/etc/proxychains.conf : CONFIGURATION TEMPLATING IS DISABLED"
 fi
 
+if [ "$WG_ENABLE" = "yes" ]; then
+    if [ ! -e "$WG_PEER_KEY_PATH" ]; then
+        echo "Error: WG_PEER_KEY_PATH ($WG_PEER_KEY_PATH) does not exist or is inaccessible"
+        exit 1
+    fi
+    export WG_PEER_KEY="$(cat "$WG_PEER_KEY_PATH")"
+    if [ ! -e "$WG_PEER_PSK_PATH" ]; then
+        echo "Error: WG_PEER_PSK_PATH ($WG_PEER_PSK_PATH) does not exist or is inaccessible"
+        exit 1
+    fi
+    export WG_PEER_PSK="$(cat "$WG_PEER_PSK_PATH")"
+fi
+
+if [ "$WG_ENABLE" = "yes" ] && [ "$CONFIG_DISABLE" != "yes" ]; then
+    if ! GW_DEV="$(ip route | grep ^default | grep -o 'dev .*' | cut -d' ' -f2)" ; then
+        echo "Error: could not discover gateway interface"
+        exit 1
+    fi
+
+    TPROXY_MARK=100
+    ip route add local default dev lo table $TPROXY_MARK || exit 1
+    ip rule add fwmark $TPROXY_MARK lookup $TPROXY_MARK || exit 1
+    # Configure iptables infrastructure on launch
+    iptables -t mangle -N DIVERT || exit 1
+    # Don't intercept wireguard packets
+    iptables -t mangle -A PREROUTING -p udp --dport 51820 -j ACCEPT || exit 1
+    # Don't intercept proxy traffic
+    read -r -a http_ports <<< "$HTTP_PORT"
+    for http_port in "${http_ports[@]}"; do
+        iptables -t mangle -A PREROUTING -p tcp --dport "$http_port" -j ACCEPT || exit 1
+    done
+    # Don't intercept DNS
+    iptables -t mangle -A PREROUTING -p tcp --dport 53 -j ACCEPT || exit 1
+    iptables -t mangle -A PREROUTING -p udp --dport 53 -j ACCEPT || exit 1
+
+    # If TPROXY is enabled then enable TPROXY
+    if [ "$WG_ENABLE_TPROXY" = "yes" ] && [ "$TPROXY_PORT" != "" ]; then
+        iptables -t mangle -A PREROUTING -p tcp -j TPROXY --tproxy-mark 100/100 --on-port "$TPROXY_PORT"
+    fi
+
+    # Mark packets so they don't go through TPROXY twice
+    iptables -t mangle -A DIVERT -j MARK --set-mark $TPROXY_MARK || exit 1
+    iptables -t mangle -A DIVERT -j ACCEPT || exit 1
+    # Divert all TCP and UDP to get otherwise sent to squid
+    iptables -t mangle -A PREROUTING -p tcp -m socket -j DIVERT || exit 1
+    iptables -t mangle -A PREROUTING -p udp -m socket -j DIVERT || exit 1
+    # NAT outbound traffic
+    iptables -t nat -A POSTROUTING -o "${GW_DEV}" -j MASQUERADE
+
+    # In the supported model (what Unifi does) everything is NAT'd coming out of the tunnel
+    # with the peer IP address.
+
+    if ! mkdir -p /etc/wireguard ; then
+        echo "Could not create /etc/wireguard"
+        exit 1
+    fi
+    if [ ! -e "$WG_PRIVATE_KEY_PATH" ]; then
+        if [ "$WG_PRIVATE_KEY_GENERATE" = "yes" ]; then
+            umask 077
+            if ! wg genkey > "$WG_PRIVATE_KEY_PATH"; then
+                echo "Could not generate wireguard private key"
+                exit 1
+            fi
+            
+            if ! wg pubkey < "${WG_PRIVATE_KEY_PATH}" > "${WG_PRIVATE_KEY_PATH%%.*}.pub"; then
+                echo "Could not generate the wireguard public key at $WG_PUBLIC_KEY_PATH"
+                exit 1
+            fi
+            WG_PUBLIC_KEY_PATH="${WG_PRIVATE_KEY_PATH%%.*}.pub"
+            if ! wg pubkey < "${WG_PRIVATE_KEY_PATH}" > "${WG_PRIVATE_KEY_PATH%%.*}.pub"; then
+                echo "Could not generate the wireguard public key at $WG_PUBLIC_KEY_PATH"
+                exit 1
+            fi
+            echo "Wrote public key to $WG_PUBLIC_KEY_PATH"
+            WG_PUBLIC_KEY="$(cat "$WG_PUBLIC_KEY_PATH")"
+        else
+            echo "ERROR: no wireguard private key provided at $WG_PRIVATE_KEY_PATH and WG_PRIVATE_KEY_GENERATE is not yes"
+            exit 1
+        fi
+    else
+        if ! WG_PUBLIC_KEY="$(wg pubkey < "${WG_PRIVATE_KEY_PATH}")"; then
+            echo "ERROR: could not read private key from $WG_PRIVATE_KEY_PATH"
+            exit 1
+        fi
+        
+    fi
+    export WG_PUBLIC_KEY
+    echo "Public Key: $WG_PUBLIC_KEY"
+    export WG_PRIVATE_KEY="$(cat "$WG_PRIVATE_KEY_PATH")"
+    if ! p2 -t /wg0.conf.p2 > /etc/wireguard/wg0.conf; then
+        echo "Failed to template /etc/wireguard/wg0.conf"
+        exit 1
+    fi
+else
+    echo "/etc/wireguard/wg0.conf : CONFIGURATION TEMPLATING IS DISABLED"
+fi
+
 # Build the configuration directories if needed
 squid -z -N
+
+if [ "$WG_ENABLE" = "yes" ]; then
+    echo "100 tproxy" >> /etc/iproute2/rt_tables
+    if ! wg-quick up "/etc/wireguard/wg0.conf"; then
+        echo "Error: could not bring up the wireguard interface. Is the container capable of NET_ADMIN,SYS_MODULE,NET_RAW ?"
+        exit 1
+    fi
+fi
 
 if [ "$PROXYCHAIN" = "yes" ]; then
     if [ ! -e /etc/proxychains.conf ]; then

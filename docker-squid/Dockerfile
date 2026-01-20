@@ -1,6 +1,6 @@
 ARG DOCKER_PREFIX=
 
-FROM ${DOCKER_PREFIX}ubuntu:jammy
+FROM ${DOCKER_PREFIX}ubuntu:noble
 
 ARG TRUST_CERT=
 
@@ -15,6 +15,11 @@ RUN if [ ! -z "$TRUST_CERT" ]; then \
         update-ca-certificates ; \
     fi
 
+RUN if [ -e "/usr/local/share/ca-certificates/host-trust.crt" ]; then \
+        mkdir -p /etc/ssl/certs ; \
+        cp -f /usr/local/share/ca-certificates/host-trust.crt /etc/ssl/certs/ca-certificates ; \
+    fi
+
 # Normalize apt sources
 RUN cat /etc/apt/sources.list | grep -v '^#' | sed /^$/d > sources.tmp.1 && \
     cat /etc/apt/sources.list | sed s/deb\ /deb-src\ /g | grep -v '^#' | sed /^$/d > sources.tmp.2 && \
@@ -27,7 +32,18 @@ RUN export http_proxy=${http_proxy} ; \
     export https_proxy=${https_proxy} ; \
     apt-get update && \
     # install build tools
-    DEBIAN_FRONTEND=noninteractive apt -y install squid-openssl
+    DEBIAN_FRONTEND=noninteractive apt -y install \
+        squid-openssl \
+        wireguard \
+        wireguard-tools \
+        iptables \
+        iproute2 \
+        tcpdump \
+        net-tools \
+        iputils-ping \
+        bind9-dnsutils \
+        curl
+
 
 # Download p2cli dependency
 RUN export http_proxy=${http_proxy} ; \
@@ -72,12 +88,19 @@ RUN export http_proxy=${http_proxy} ; \
 
 
 COPY squid.conf.p2 /squid.conf.p2
+COPY wg0.conf.p2 /wg0.conf.p2
 COPY entrypoint.sh /entrypoint.sh
 
 # Configuration environment
 ENV HTTP_PORT=3128 \
+    TPROXY_PORT= \
     ICP_PORT= \
     HTCP_PORT= \
+    ENABLE_WEBSOCKETS=yes \
+    LOGFILE_ROTATE=0 \
+    ACCESS_LOG="stdio:/dev/stdout combined" \
+    CACHE_LOG="stdio:/dev/stdout" \
+    CACHE_STORE_LOG="/dev/stderr" \
     MITM_PROXY= \
     MITM_CERT= \
     MITM_KEY= \
@@ -91,7 +114,16 @@ ENV HTTP_PORT=3128 \
     DNS_OVER_HTTPS_NO_FALLTHROUGH="" \
     DNS_OVER_HTTPS_FALLTHROUGH_STATUSES=NXDOMAIN \
     DNS_OVER_HTTPS_PREFIX_SERVER= \
-    DNS_OVER_HTTPS_SUFFIX_SERVER=
+    DNS_OVER_HTTPS_SUFFIX_SERVER= \
+    WG_ENABLE=no \
+    WG_HOST_ADDR="172.17.0.1/32" \
+    WG_PEER_ADDR="172.17.0.2/32" \
+    WG_PEER_NETWORK="172.17.0.0/24" \
+    WG_PEER_KEY_PATH=/etc/wireguard/pub/wg0.peer.pub \
+    WG_PEER_PSK_PATH=/etc/wireguard/keys/wg0.peer.psk \
+    WG_PRIVATE_KEY_PATH=/etc/wireguard/keys/wg0.key \
+    WG_PRIVATE_KEY_GENERATE=yes \
+    WG_ENABLE_TPROXY=yes
 
 EXPOSE 3128
 

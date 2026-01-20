@@ -1,10 +1,10 @@
 # TEMPLATED CONFIGURATION FILE. UPDATED ON EACH RUN.
 
 # Default all logs to stdout and stderr
-logfile_rotate 0
-access_log stdio:/dev/stdout combined
-cache_store_log stdio:/dev/stdout
-cache_log /dev/stderr
+logfile_rotate {{LOGFILE_ROTATE}}
+access_log {{ACCESS_LOG}}
+cache_store_log {{CACHE_STORE_LOG}}
+cache_log {{CACHE_LOG}}
 netdb_filename stdio:/var/cache/squid/netdb.state
 
 # Visible hostname to allow multi-squid
@@ -31,6 +31,16 @@ http_port {{http_port}} {% if MITM_PROXY|default:"" == "yes" %} ssl-bump \
 {% endif %}
 {% endfor %}
 
+{% if TPROXY_PORT|default:"" != "" %}
+http_port {{TPROXY_PORT}} {% if MITM_PROXY|default:"" == "yes" %} ssl-bump \
+    generate-host-certificates=on \
+    dynamic_cert_mem_cache_size=4MB \
+    cert=/etc/squid/ssl_cert/mitm.crt \
+    key=/etc/squid/ssl_cert/mitm.pem \
+{% endif %}
+    tproxy
+{% endif %}
+
 {% if MITM_PROXY|default:"" == "yes" %}
 ssl_bump bump all
 {% endif %}
@@ -43,6 +53,10 @@ icp_access allow all
 {% if HTCP_PORT|default:"" != "" %}
 htcp_port {{HTCP_PORT}}
 htcp_access allow all
+{% endif %}
+
+{% if ENABLE_WEBSOCKETS|default:"" == "yes" %}
+http_upgrade_request_protocols websocket allow all
 {% endif %}
 
 http_access allow all
