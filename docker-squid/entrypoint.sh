@@ -1,5 +1,17 @@
 #!/bin/bash
 
+if [ "$CONTAINER_DEBUG" = "yes" ]; then 
+    set -x
+fi
+
+fatal() {
+    if [ "$CONTAINER_DEBUG" = "yes" ]; then 
+        sleep 3600
+    else
+        fatal
+    fi  
+}
+
 # Setup the ssl_cert directory
 if [ ! -d /etc/squid/ssl_cert ]; then
     mkdir /etc/squid/ssl_cert
@@ -24,7 +36,7 @@ if [ ! -z "$MITM_PROXY" ]; then
             MITM_KEY=".pem"
         else
             echo "Must specify MITM_CERT AND MITM_KEY." 1>&2
-            exit 1
+            fatal
         fi
     fi
 
@@ -90,7 +102,7 @@ fi
 
 if [ ! -e /etc/squid/squid.conf ]; then
     echo "ERROR: /etc/squid/squid.conf does not exist. Squid will not work."
-    exit 1
+    fatal
 fi
 
 # If proxychains is requested and config templating is active
@@ -110,7 +122,7 @@ if [ "$PROXYCHAIN" = "yes" ] && [ "$CONFIG_DISABLE" != "yes" ]; then
     echo "[ProxyList]" >> /etc/proxychains.conf
     env | grep 'PROXYCHAIN_PROXY' | sort | while read proxyline; do
         echo "# $proxyline " >> /etc/squid/squid.conf
-        line=$(echo $proxyline | cut -d'=' -f2-)
+        line=$(echo "$proxyline" | cut -d'=' -f2-)
         echo "$line" >> /etc/proxychains.conf
     done
 else
@@ -120,12 +132,12 @@ fi
 if [ "$WG_ENABLE" = "yes" ]; then
     if [ ! -e "$WG_PEER_KEY_PATH" ]; then
         echo "Error: WG_PEER_KEY_PATH ($WG_PEER_KEY_PATH) does not exist or is inaccessible"
-        exit 1
+        fatal
     fi
     export WG_PEER_KEY="$(cat "$WG_PEER_KEY_PATH")"
     if [ ! -e "$WG_PEER_PSK_PATH" ]; then
         echo "Error: WG_PEER_PSK_PATH ($WG_PEER_PSK_PATH) does not exist or is inaccessible"
-        exit 1
+        fatal
     fi
     export WG_PEER_PSK="$(cat "$WG_PEER_PSK_PATH")"
 fi
@@ -133,24 +145,24 @@ fi
 if [ "$WG_ENABLE" = "yes" ] && [ "$CONFIG_DISABLE" != "yes" ]; then
     if ! GW_DEV="$(ip route | grep ^default | grep -o 'dev .*' | cut -d' ' -f2)" ; then
         echo "Error: could not discover gateway interface"
-        exit 1
+        fatal
     fi
 
     TPROXY_MARK=100
-    ip route add local default dev lo table $TPROXY_MARK || exit 1
-    ip rule add fwmark $TPROXY_MARK lookup $TPROXY_MARK || exit 1
+    ip route add local default dev lo table $TPROXY_MARK || fatal
+    ip rule add fwmark $TPROXY_MARK lookup $TPROXY_MARK || fatal
     # Configure iptables infrastructure on launch
-    iptables -t mangle -N DIVERT || exit 1
+    iptables -t mangle -N DIVERT || fatal
     # Don't intercept wireguard packets
-    iptables -t mangle -A PREROUTING -p udp --dport 51820 -j ACCEPT || exit 1
+    iptables -t mangle -A PREROUTING -p udp --dport 51820 -j ACCEPT || fatal
     # Don't intercept proxy traffic
     read -r -a http_ports <<< "$HTTP_PORT"
     for http_port in "${http_ports[@]}"; do
-        iptables -t mangle -A PREROUTING -p tcp --dport "$http_port" -j ACCEPT || exit 1
+        iptables -t mangle -A PREROUTING -p tcp --dport "$http_port" -j ACCEPT || fatal
     done
     # Don't intercept DNS
-    iptables -t mangle -A PREROUTING -p tcp --dport 53 -j ACCEPT || exit 1
-    iptables -t mangle -A PREROUTING -p udp --dport 53 -j ACCEPT || exit 1
+    iptables -t mangle -A PREROUTING -p tcp --dport 53 -j ACCEPT || fatal
+    iptables -t mangle -A PREROUTING -p udp --dport 53 -j ACCEPT || fatal
 
     # If TPROXY is enabled then enable TPROXY
     if [ "$WG_ENABLE_TPROXY" = "yes" ] && [ "$TPROXY_PORT" != "" ]; then
@@ -158,11 +170,11 @@ if [ "$WG_ENABLE" = "yes" ] && [ "$CONFIG_DISABLE" != "yes" ]; then
     fi
 
     # Mark packets so they don't go through TPROXY twice
-    iptables -t mangle -A DIVERT -j MARK --set-mark $TPROXY_MARK || exit 1
-    iptables -t mangle -A DIVERT -j ACCEPT || exit 1
+    iptables -t mangle -A DIVERT -j MARK --set-mark $TPROXY_MARK || fatal
+    iptables -t mangle -A DIVERT -j ACCEPT || fatal
     # Divert all TCP and UDP to get otherwise sent to squid
-    iptables -t mangle -A PREROUTING -p tcp -m socket -j DIVERT || exit 1
-    iptables -t mangle -A PREROUTING -p udp -m socket -j DIVERT || exit 1
+    iptables -t mangle -A PREROUTING -p tcp -m socket -j DIVERT || fatal
+    iptables -t mangle -A PREROUTING -p udp -m socket -j DIVERT || fatal
     # NAT outbound traffic
     iptables -t nat -A POSTROUTING -o "${GW_DEV}" -j MASQUERADE
 
@@ -171,35 +183,35 @@ if [ "$WG_ENABLE" = "yes" ] && [ "$CONFIG_DISABLE" != "yes" ]; then
 
     if ! mkdir -p /etc/wireguard ; then
         echo "Could not create /etc/wireguard"
-        exit 1
+        fatal
     fi
     if [ ! -e "$WG_PRIVATE_KEY_PATH" ]; then
         if [ "$WG_PRIVATE_KEY_GENERATE" = "yes" ]; then
             umask 077
             if ! wg genkey > "$WG_PRIVATE_KEY_PATH"; then
                 echo "Could not generate wireguard private key"
-                exit 1
+                fatal
             fi
             
             if ! wg pubkey < "${WG_PRIVATE_KEY_PATH}" > "${WG_PRIVATE_KEY_PATH%%.*}.pub"; then
                 echo "Could not generate the wireguard public key at $WG_PUBLIC_KEY_PATH"
-                exit 1
+                fatal
             fi
             WG_PUBLIC_KEY_PATH="${WG_PRIVATE_KEY_PATH%%.*}.pub"
             if ! wg pubkey < "${WG_PRIVATE_KEY_PATH}" > "${WG_PRIVATE_KEY_PATH%%.*}.pub"; then
                 echo "Could not generate the wireguard public key at $WG_PUBLIC_KEY_PATH"
-                exit 1
+                fatal
             fi
             echo "Wrote public key to $WG_PUBLIC_KEY_PATH"
             WG_PUBLIC_KEY="$(cat "$WG_PUBLIC_KEY_PATH")"
         else
             echo "ERROR: no wireguard private key provided at $WG_PRIVATE_KEY_PATH and WG_PRIVATE_KEY_GENERATE is not yes"
-            exit 1
+            fatal
         fi
     else
         if ! WG_PUBLIC_KEY="$(wg pubkey < "${WG_PRIVATE_KEY_PATH}")"; then
             echo "ERROR: could not read private key from $WG_PRIVATE_KEY_PATH"
-            exit 1
+            fatal
         fi
         
     fi
@@ -208,7 +220,7 @@ if [ "$WG_ENABLE" = "yes" ] && [ "$CONFIG_DISABLE" != "yes" ]; then
     export WG_PRIVATE_KEY="$(cat "$WG_PRIVATE_KEY_PATH")"
     if ! p2 -t /wg0.conf.p2 > /etc/wireguard/wg0.conf; then
         echo "Failed to template /etc/wireguard/wg0.conf"
-        exit 1
+        fatal
     fi
 else
     echo "/etc/wireguard/wg0.conf : CONFIGURATION TEMPLATING IS DISABLED"
@@ -221,14 +233,14 @@ if [ "$WG_ENABLE" = "yes" ]; then
     echo "100 tproxy" >> /etc/iproute2/rt_tables
     if ! wg-quick up "/etc/wireguard/wg0.conf"; then
         echo "Error: could not bring up the wireguard interface. Is the container capable of NET_ADMIN,SYS_MODULE,NET_RAW ?"
-        exit 1
+        fatal
     fi
 fi
 
 if [ "$PROXYCHAIN" = "yes" ]; then
     if [ ! -e /etc/proxychains.conf ]; then
         echo "ERROR: /etc/proxychains.conf does not exist. Squid with proxychains will not work."
-        exit 1
+        fatal
     fi 
     # Start squid with proxychains
     proxychains4 -f /etc/proxychains.conf squid -N 2>&1 &
